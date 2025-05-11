@@ -1,0 +1,16 @@
+Generate a Ruby 3.1 gem-based CLI application named dance. It should be Thor-based. It should offer two commands, dance nice and dance bear.
+
+ dance nice should show a line of dancer terminal emojis, animated if possible.
+
+dance bear should show bears, the animal.
+dance bear should issue a warning to STDERR saying "WARN: the bear does not dance well" unless the env var A_WONDER_THE_BEAR_DANCES_AT_ALL is set.
+
+Package the command as a gem.
+
+Include a Dockerfile that will run the command as the entry point. 
+
+Include tests and a README
+
+Include a Rakefile for testing and packaging.
+
+Include a Gemfile.
