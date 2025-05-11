@@ -1,11 +1,21 @@
 
 name: Ruby-Verify
 
+# A Verify Pipeline for Ruby projects.
+
+# Runs 'bundle exec rake test' for a Ruby-based project 
+# setup like a typical gem.
+
+# Caches the bundle install step to speed up the workflow.
+
+# Runs on Ubuntu, Fedora, MacOS, and Windows.
+# Runs on an array of Ruby versions.
+
 on:
-  push:
-    branches: [ "main" ]
   pull_request:
-    branches: [ "main" ]
+  push:
+    branches: 
+      - "main"
 
 permissions:
   contents: read
