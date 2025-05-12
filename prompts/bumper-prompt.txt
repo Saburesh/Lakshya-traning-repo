@@ -1,0 +1,11 @@
+Make a GitHub Action that bumps (conditionally increments) the version in a software project according to semantic versioning when a PR is merged to main. It should update all occurences of the version string in relevant files.
+
+It should use GitHub Labels to determine which bump level (patch, minor, or major) to perform. If no special label is present, bump the patch level. If the label 'Version Bump: Minor" is present, bump the minor level. Likewise for Major.
+
+The solution must work especially well for Ruby projects. Use the 'bump' rubygem to perform the updates. 
+
+It should be flexible about which files in which it looks for the version number. Ideally, it would use reasonable defaults based on the programming language of the project. But the action should also accept as an array a list of extra filenames to explicitly manage. You do not have to tell bump about the VERSION or version.rb files, only about the extra files.
+
+The action should push the commit directly to main and push the new tag. Note that the 'bump' command will commit the change, and you should have bump tag the change as well.
+
+Advise the user about any secrets needed, and any privileges needed for any tokens.

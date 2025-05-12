@@ -1,0 +1,91 @@
+name: Version Bumper
+
+description: |
+  A GitHub Action to automatically bump the version of a project based on pull request labels.
+  It uses the `bump` gem to handle versioning and tagging.
+
+  This action is triggered when a pull request is closed and merged into the main branch.
+  It determines the version bump type (major, minor, patch) based on the labels applied to the pull request.
+  Define the 'Version Bump: Major' and 'Version Bump: Minor' labels in your repository to use this action effectively.
+
+  The action can also accept additional files to update version strings in, specified as a comma-separated list.
+
+on:
+  pull_request:
+    types: [closed]
+    branches:
+      - main
+
+jobs:
+  bump-version:
+    if: github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: read
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      
+      - name: Set up Git
+        run: |
+          git config --global user.name "Progress CI Automation"
+          git config --global user.email "ci@progress.com"
+      
+      - name: Set up Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: 'ruby'
+          bundler-cache: true
+      
+      - name: Install bump gem
+        run: gem install bump
+      
+      - name: Determine bump type from labels
+        id: bump-type
+        run: |
+          if [[ "${{ toJson(github.event.pull_request.labels.*.name) }}" == *"Version Bump: Major"* ]]; then
+            echo "level=major" >> $GITHUB_OUTPUT
+          elif [[ "${{ toJson(github.event.pull_request.labels.*.name) }}" == *"Version Bump: Minor"* ]]; then
+            echo "level=minor" >> $GITHUB_OUTPUT
+          else
+            echo "level=patch" >> $GITHUB_OUTPUT
+          fi
+          echo "Determined bump level: $(cat $GITHUB_OUTPUT | grep level | cut -d= -f2)"
+      
+      - name: Run version bump with custom files
+        run: |
+          BUMP_LEVEL="${{ steps.bump-type.outputs.level }}"
+          
+          # Start with default command to let bump automatically find version files
+          BUMP_COMMAND="bump $BUMP_LEVEL --tag"
+          
+          # If additional files are provided, add them to the command
+          if [ -n "${{ inputs.additional_files }}" ]; then
+            IFS=',' read -ra FILES <<< "${{ inputs.additional_files }}"
+            for file in "${FILES[@]}"; do
+              BUMP_COMMAND="$BUMP_COMMAND --replace $file"
+            done
+          fi
+          
+          # Execute the bump command (bump will handle committing and tagging)
+          eval $BUMP_COMMAND
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Push changes to main
+        run: |
+          # Bump has already committed and tagged, we just need to push
+          git push origin HEAD:main
+          git push origin --tags
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+inputs:
+  additional_files:
+    description: 'Comma-separated list of additional files to update version strings in'
+    required: false
+    default: ''
