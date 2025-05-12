@@ -8,19 +8,13 @@ description: |
   It determines the version bump type (major, minor, patch) based on the labels applied to the pull request.
   Define the 'Version Bump: Major' and 'Version Bump: Minor' labels in your repository to use this action effectively.
 
-  The action can also accept additional files to update version strings in, specified as a comma-separated list.
+  The action updates version strings in the files defined directly in the workflow.
 
 on:
   pull_request:
     types: [closed]
     branches:
       - main
-
-inputs:
-  additional_files:
-    description: 'Comma-separated list of additional files to update version strings in'
-    required: false
-    default: ''
 
 jobs:
   bump-version:
@@ -29,6 +23,11 @@ jobs:
     permissions:
       contents: write
       pull-requests: read
+    
+    # Files to update version strings in (add your files here)
+    env:
+      additional_files:
+        # - inspec.yml
     
     steps:
       - name: Checkout code
@@ -69,14 +68,22 @@ jobs:
           # Start with default command to let bump automatically find version files
           BUMP_COMMAND="bump $BUMP_LEVEL --tag"
           
-          # If additional files are provided, add them to the command
-          if [ -n "${{ inputs.additional_files }}" ]; then
-            IFS=',' read -ra FILES <<< "${{ inputs.additional_files }}"
-            for file in "${FILES[@]}"; do
-              BUMP_COMMAND="$BUMP_COMMAND --replace $file"
+          # Check if additional_files exists and is not empty
+          files_json='${{ toJSON(env.additional_files) }}'
+          if [ "$files_json" != "null" ] && [ "$files_json" != "[]" ]; then
+            # Add each file from the YAML array to the command
+            echo "Processing additional files from configuration"
+            for file in $(echo "$files_json" | jq -r '.[]' 2>/dev/null || echo ""); do
+              if [ -n "$file" ]; then
+                BUMP_COMMAND="$BUMP_COMMAND --replace $file"
+                echo "  - Added file: $file"
+              fi
             done
+          else
+            echo "No additional files specified, using default version files only"
           fi
           
+          echo "Executing: $BUMP_COMMAND"
           # Execute the bump command (bump will handle committing and tagging)
           eval $BUMP_COMMAND
         env:
