@@ -67,7 +67,7 @@ jobs:
             echo "Reading file patterns from $VERSION_FILES_PATH"
             
             # Read each line from the file, which may contain glob patterns
-            while IFS= read -r file_pattern || [ -n "$file_pattern" ]; then
+            while IFS= read -r file_pattern || [ -n "$file_pattern" ]; do
               # Skip empty lines and comments
               if [ -z "$file_pattern" ] || [[ "$file_pattern" == \#* ]]; then
                 continue
