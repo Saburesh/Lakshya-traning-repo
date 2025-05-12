@@ -48,13 +48,21 @@ jobs:
       - name: Determine bump type from labels
         id: bump-type
         run: |
-          if [[ "${{ toJson(github.event.pull_request.labels.*.name) }}" == *"Version Bump: Major"* ]]; then
+          # Store the labels in a variable and properly parse JSON format
+          LABELS='${{ toJson(github.event.pull_request.labels.*.name) }}'
+          
+          # Check for labels with proper JSON parsing
+          if echo "$LABELS" | grep -q "Version Bump: Major"; then
             echo "level=major" >> $GITHUB_OUTPUT
-          elif [[ "${{ toJson(github.event.pull_request.labels.*.name) }}" == *"Version Bump: Minor"* ]]; then
+            echo "Found label: Version Bump: Major"
+          elif echo "$LABELS" | grep -q "Version Bump: Minor"; then
             echo "level=minor" >> $GITHUB_OUTPUT
+            echo "Found label: Version Bump: Minor"
           else
             echo "level=patch" >> $GITHUB_OUTPUT
+            echo "No specific version bump label found, defaulting to patch"
           fi
+          
           echo "Determined bump level: $(cat $GITHUB_OUTPUT | grep level | cut -d= -f2)"
       
       - name: Build list of files to update
