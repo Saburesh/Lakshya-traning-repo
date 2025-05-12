@@ -64,3 +64,4 @@ docker run -e A_WONDER_THE_BEAR_DANCES_AT_ALL=true dance bear
 
 Proprietary.beep
 .beep
+.beep
