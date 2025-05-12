@@ -16,6 +16,12 @@ on:
     branches:
       - main
 
+inputs:
+  additional_files:
+    description: 'Comma-separated list of additional files to update version strings in'
+    required: false
+    default: ''
+
 jobs:
   bump-version:
     if: github.event.pull_request.merged == true
@@ -83,9 +89,3 @@ jobs:
           git push origin --tags
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-inputs:
-  additional_files:
-    description: 'Comma-separated list of additional files to update version strings in'
-    required: false
-    default: ''
