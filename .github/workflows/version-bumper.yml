@@ -2,14 +2,19 @@ name: Version Bumper
 
 description: |
   A GitHub Action to automatically bump the version of a project based on pull request labels.
-  It uses the `bump` gem to handle versioning and tagging.
+  It uses the `bump` gem to handle versioning, committing, and tagging.
 
   This action is triggered when a pull request is closed and merged into the main branch.
   It determines the version bump type (major, minor, patch) based on the labels applied to the pull request.
-  Define the 'Version Bump: Major' and 'Version Bump: Minor' labels in your repository to use this action effectively.
+  The action will automatically commit the version bump and create a new tag for the release.
+
+  By default, it will bump the patch version unless specified otherwise. Use Labels on your PR 
+  to control behavior.  Define the 'Version Bump: Major', 'Version Bump: Minor', 
+  and "Version Bump: Skip" labels in your repository to use this action effectively.
 
   The action updates version strings in the files specified in the `.github/workflows/version-files.txt` file, 
-  which contains reasonable defaults for Progress Chef, but may need to be customized for your project.
+  which contains reasonable defaults for Progress Chef, but may need to be customized for your project. 
+  You may use globs. You may specify files that do not exist in all projects, and they will be ignored with a warning.
 
 on:
   pull_request:
