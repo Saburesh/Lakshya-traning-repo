@@ -8,7 +8,8 @@ description: |
   It determines the version bump type (major, minor, patch) based on the labels applied to the pull request.
   Define the 'Version Bump: Major' and 'Version Bump: Minor' labels in your repository to use this action effectively.
 
-  The action updates version strings in the files defined directly in the workflow.
+  The action updates version strings in the files specified in the `.github/workflows/version-files.txt` file, 
+  which contains reasonable defaults for Progress Chef, but may need to be customized for your project.
 
 on:
   pull_request:
@@ -23,15 +24,7 @@ jobs:
     permissions:
       contents: write
       pull-requests: read
-    
-    # Files to update version strings in (add your files here)
-    # Bump will auto-detect the first file it finds with a version string
-    env:
-      additional_files:
-        - VERSION
-        - 'lib/*/version.rb'
-        - inspec.yml
-    
+        
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -64,27 +57,59 @@ jobs:
           fi
           echo "Determined bump level: $(cat $GITHUB_OUTPUT | grep level | cut -d= -f2)"
       
+      - name: Build list of files to update
+        id: file-list
+        run: |
+          VERSION_FILES_PATH=".github/workflows/version-files.txt"
+          BUMP_FILE_ARGS=""
+          
+          if [ -f "$VERSION_FILES_PATH" ]; then
+            echo "Reading file patterns from $VERSION_FILES_PATH"
+            
+            # Read each line from the file, which may contain glob patterns
+            while IFS= read -r file_pattern || [ -n "$file_pattern" ]; then
+              # Skip empty lines and comments
+              if [ -z "$file_pattern" ] || [[ "$file_pattern" == \#* ]]; then
+                continue
+              fi
+              
+              # Trim whitespace
+              file_pattern=$(echo "$file_pattern" | xargs)
+              echo "  - Processing pattern: $file_pattern"
+              
+              # Expand the glob pattern to actual files
+              matched_files=$(find . -path "./$file_pattern" 2>/dev/null || echo "")
+              
+              if [ -z "$matched_files" ]; then
+                # If the pattern didn't match any files, it might be a literal filename
+                # or a pattern that will match future files, so include it directly
+                echo "    - No files matched glob pattern, including as-is"
+                BUMP_FILE_ARGS+=" --replace-in $file_pattern"
+              else
+                # Add each matched file individually
+                while IFS= read -r file; do
+                  if [ -n "$file" ]; then
+                    # Remove leading ./ from the file path
+                    relative_file="${file#./}"
+                    echo "    - Found file: $relative_file"
+                    BUMP_FILE_ARGS+=" --replace-in $relative_file"
+                  fi
+                done <<< "$matched_files"
+              fi
+            done < "$VERSION_FILES_PATH"
+          else
+            echo "Warning: $VERSION_FILES_PATH not found, using default version files only"
+          fi
+          
+          echo "file_args=$BUMP_FILE_ARGS" >> $GITHUB_OUTPUT
+      
       - name: Run version bump with custom files
         run: |
           BUMP_LEVEL="${{ steps.bump-type.outputs.level }}"
+          FILE_ARGS="${{ steps.file-list.outputs.file_args }}"
           
-          # Start with default command to let bump automatically find version files
-          BUMP_COMMAND="bump $BUMP_LEVEL --tag"
-          
-          # Check if additional_files exists and is not empty
-          files_json='${{ toJSON(env.additional_files) }}'
-          if [ "$files_json" != "null" ] && [ "$files_json" != "[]" ]; then
-            # Add each file from the YAML array to the command
-            echo "Processing additional files from configuration"
-            for file in $(echo "$files_json" | jq -r '.[]' 2>/dev/null || echo ""); do
-              if [ -n "$file" ]; then
-                BUMP_COMMAND="$BUMP_COMMAND --replace-in $file"
-                echo "  - Added file: $file"
-              fi
-            done
-          else
-            echo "No additional files specified, using default version files only"
-          fi
+          # Build the bump command with the level and any file arguments
+          BUMP_COMMAND="bump $BUMP_LEVEL --tag $FILE_ARGS"
           
           echo "Executing: $BUMP_COMMAND"
           # Execute the bump command (bump will handle committing and tagging)
