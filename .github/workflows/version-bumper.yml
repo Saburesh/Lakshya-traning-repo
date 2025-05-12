@@ -81,18 +81,28 @@ jobs:
               matched_files=$(find . -path "./$file_pattern" 2>/dev/null || echo "")
               
               if [ -z "$matched_files" ]; then
-                # If the pattern didn't match any files, it might be a literal filename
-                # or a pattern that will match future files, so include it directly
-                echo "    - No files matched glob pattern, including as-is"
-                BUMP_FILE_ARGS+=" --replace-in $file_pattern"
+                # Check if it's a literal file that exists
+                if [ -f "$file_pattern" ]; then
+                  echo "    - Found literal file: $file_pattern"
+                  BUMP_FILE_ARGS+=" --replace-in $file_pattern"
+                else
+                  echo "    - WARNING: No files matched pattern '$file_pattern' and file does not exist"
+                  echo "    - Skipping this pattern as bump cannot process non-existent files"
+                fi
               else
-                # Add each matched file individually
+                # Add each matched file individually after verifying it exists
                 while IFS= read -r file; do
                   if [ -n "$file" ]; then
                     # Remove leading ./ from the file path
                     relative_file="${file#./}"
-                    echo "    - Found file: $relative_file"
-                    BUMP_FILE_ARGS+=" --replace-in $relative_file"
+                    
+                    # Double-check the file exists (should always be true from find)
+                    if [ -f "$relative_file" ]; then
+                      echo "    - Found file: $relative_file"
+                      BUMP_FILE_ARGS+=" --replace-in $relative_file"
+                    else
+                      echo "    - WARNING: File '$relative_file' was found by glob but doesn't exist - skipping"
+                    fi
                   fi
                 done <<< "$matched_files"
               fi
