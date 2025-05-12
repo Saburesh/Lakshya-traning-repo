@@ -1,10 +1,10 @@
 name: Version Bumper
 
 description: |
-  A GitHub Action to automatically bump the version of a project based on pull request labels.
-  It uses the `bump` gem to handle versioning, committing, and tagging.
+  A reusable GitHub Action to automatically bump the version of a project based on pull request labels.
+  It uses the `bump` gem to handle versioning and tagging.
 
-  This action is triggered when a pull request is closed and merged into the main branch.
+  This action is triggered when called by another workflow after a pull request is merged into the main branch.
   It determines the version bump type (major, minor, patch) based on the labels applied to the pull request.
   The action will automatically commit the version bump and create a new tag for the release.
 
@@ -12,7 +12,7 @@ description: |
   to control behavior.  Define the 'Version Bump: Major', 'Version Bump: Minor', 
   and "Version Bump: Skip" labels in your repository to use this action effectively.
 
-  The action updates version strings in the files specified in the `.github/workflows/version-files.txt` file, 
+  The action updates version strings in the files specified in the `.github/workflows/version-files.txt` file,
   which contains reasonable defaults for Progress Chef, but may need to be customized for your project. 
   You may use globs. You may specify files that do not exist in all projects, and they will be ignored with a warning.
 
@@ -25,15 +25,52 @@ description: |
   ```
 
 on:
-  pull_request:
-    types: [closed]
-    branches:
-      - main
+  workflow_call:
+    inputs:
+      pr_number:
+        description: 'The pull request number that was merged (optional - will be auto-detected if not provided)'
+        required: false
+        type: number
+        default: 0
+      target_branch:
+        description: 'The branch to push version changes to'
+        required: false
+        default: 'main'
+        type: string
+      config_file_path:
+        description: 'Path to the file containing version file patterns'
+        required: false
+        default: '.github/workflows/version-files.txt'
+        type: string
+      git_username:
+        description: 'Git username for commits'
+        required: false
+        default: 'Progress CI Automation'
+        type: string
+      git_email:
+        description: 'Git email for commits'
+        required: false
+        default: 'ci@progress.com'
+        type: string
+    outputs:
+      bump_level:
+        description: 'The level that was bumped (major, minor, patch, or skipped)'
+        value: ${{ jobs.bump-version.outputs.bump_level }}
+      was_skipped:
+        description: 'Whether the version bump was skipped'
+        value: ${{ jobs.bump-version.outputs.was_skipped }}
+      new_version:
+        description: 'The new version after bumping'
+        value: ${{ jobs.bump-version.outputs.new_version }}
 
 jobs:
   bump-version:
-    if: github.event.pull_request.merged == true
     runs-on: ubuntu-latest
+    outputs:
+      bump_level: ${{ steps.bump-type.outputs.level || 'skipped' }}
+      was_skipped: ${{ steps.bump-type.outputs.skip }}
+      new_version: ${{ steps.run-bump.outputs.new_version || '' }}
+      pr_number: ${{ steps.get-pr-number.outputs.pr_number }}
     permissions:
       contents: write
       pull-requests: read
@@ -46,8 +83,8 @@ jobs:
       
       - name: Set up Git
         run: |
-          git config --global user.name "Progress CI Automation"
-          git config --global user.email "ci@progress.com"
+          git config --global user.name "${{ inputs.git_username }}"
+          git config --global user.email "${{ inputs.git_email }}"
       
       - name: Set up Ruby
         uses: ruby/setup-ruby@v1
@@ -58,11 +95,72 @@ jobs:
       - name: Install bump gem
         run: gem install bump
       
+      - name: Get PR number
+        id: get-pr-number
+        uses: actions/github-script@v7
+        with:
+          script: |
+            let prNumber = ${{ inputs.pr_number }};
+            let inPrContext = false;
+            
+            // If PR number was not provided as input, try to detect it
+            if (!prNumber || prNumber === 0) {
+              console.log('PR number not provided as input, attempting to auto-detect...');
+              
+              // Check if we're running in the context of a PR event
+              if (context.payload.pull_request) {
+                inPrContext = true;
+                prNumber = context.payload.pull_request.number;
+                console.log(`Detected PR number from event context: ${prNumber}`);
+              } else {
+                // Not running in PR context and no PR number provided
+                core.setFailed('This workflow must be run in a PR context or with a PR number provided');
+                throw new Error('Not running in PR context');
+              }
+            } else {
+              inPrContext = true;
+            }
+            
+            core.setOutput('pr_number', prNumber.toString());
+            core.setOutput('in_pr_context', inPrContext.toString());
+            return prNumber.toString();
+          result-encoding: string
+
+      - name: Fetch PR labels
+        id: fetch-labels
+        if: steps.get-pr-number.outputs.pr_number != '0'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const prNumber = parseInt(${{ steps.get-pr-number.outputs.pr_number }});
+            
+            try {
+              const { data: pr } = await github.rest.pulls.get({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                pull_number: prNumber
+              });
+              
+              const labelNames = pr.labels.map(label => label.name);
+              console.log(`PR #${prNumber} has labels:`, labelNames);
+              return JSON.stringify(labelNames);
+            } catch (error) {
+              console.log(`Error fetching PR #${prNumber}: ${error.message}`);
+              return '[]';
+            }
+          result-encoding: string
+
       - name: Determine bump type from labels
         id: bump-type
         run: |
+          # Check if we have a valid PR number
+          if [ "${{ steps.get-pr-number.outputs.pr_number }}" = "0" ]; then
+            echo "::error::No valid PR number detected. Cannot determine version bump type."
+            exit 1
+          fi
+
           # Store the labels in a variable and properly parse JSON format
-          LABELS='${{ toJson(github.event.pull_request.labels.*.name) }}'
+          LABELS='${{ steps.fetch-labels.outputs.result }}'
           
           # First check if we should skip the version bump entirely
           if echo "$LABELS" | grep -q "Version Bump: Skip"; then
@@ -90,7 +188,7 @@ jobs:
         id: file-list
         if: steps.bump-type.outputs.skip != 'true'
         run: |
-          VERSION_FILES_PATH=".github/workflows/version-files.txt"
+          VERSION_FILES_PATH="${{ inputs.config_file_path }}"
           BUMP_FILE_ARGS=""
           
           if [ -f "$VERSION_FILES_PATH" ]; then
@@ -144,6 +242,7 @@ jobs:
           echo "file_args=$BUMP_FILE_ARGS" >> $GITHUB_OUTPUT
       
       - name: Run version bump with custom files
+        id: run-bump
         if: steps.bump-type.outputs.skip != 'true'
         run: |
           BUMP_LEVEL="${{ steps.bump-type.outputs.level }}"
@@ -154,15 +253,21 @@ jobs:
           
           echo "Executing: $BUMP_COMMAND"
           # Execute the bump command (bump will handle committing and tagging)
-          eval $BUMP_COMMAND
+          OUTPUT=$(eval $BUMP_COMMAND)
+          echo "$OUTPUT"
+          
+          # Extract the new version number from the output
+          NEW_VERSION=$(echo "$OUTPUT" | grep -o "to [0-9]\+\.[0-9]\+\.[0-9]\+" | cut -d' ' -f2)
+          echo "new_version=$NEW_VERSION" >> $GITHUB_OUTPUT
+          echo "Bumped to version: $NEW_VERSION"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       
-      - name: Push changes to main
+      - name: Push changes to target branch
         if: steps.bump-type.outputs.skip != 'true'
         run: |
           # Bump has already committed and tagged, we just need to push
-          git push origin HEAD:main
+          git push origin HEAD:${{ inputs.target_branch }}
           git push origin --tags
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

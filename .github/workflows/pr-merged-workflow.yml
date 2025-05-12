@@ -1,0 +1,37 @@
+name: PR Merged Workflow
+
+description: |
+  This workflow runs when a pull request is merged to the main branch.
+  It calls the reusable version bumper workflow to update version numbers.
+
+on:
+  pull_request:
+    types: [closed]
+    branches:
+      - main
+
+jobs:
+  handle-merged-pr:
+    # Only run if the PR was merged (not just closed)
+    if: github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+    steps:
+      #- name: Checkout code
+      #  uses: actions/checkout@v4
+
+      # You can add other steps here that should run after a PR is merged
+      # For example: deployment, notifications, etc.
+      
+      - name: Show PR information
+        run: |
+          echo "PR #${{ github.event.pull_request.number }} was merged"
+          echo "Title: ${{ github.event.pull_request.title }}"
+          echo "Labels: ${{ toJson(github.event.pull_request.labels.*.name) }}"
+
+  # Call the reusable version bumper workflow
+  bump-version:
+    needs: handle-merged-pr
+    uses: ./.github/workflows/version-bumper.yml
+    permissions:
+      contents: write
+      pull-requests: read
