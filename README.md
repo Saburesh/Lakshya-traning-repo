@@ -12,7 +12,7 @@ Runs "rake test" in a Bundler environment, in a (Ruby Version)x(OS) matrix, whic
 
 ### version-bumper
 
-Does semver bumping and tagging on a list of files you specify, on PR merge. Controlled by Labels.
+Does semver bumping and tagging on a list of files you specify, on PR merge. Controlled by Labels. Replacement for Expeditor "bump-version" workflow.
 
 ## Sample Apps
 
