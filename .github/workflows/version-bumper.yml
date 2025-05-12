@@ -16,6 +16,14 @@ description: |
   which contains reasonable defaults for Progress Chef, but may need to be customized for your project. 
   You may use globs. You may specify files that do not exist in all projects, and they will be ignored with a warning.
 
+  Sample version-files.txt:
+  ```
+  # This is a comment
+  lib/*/version.rb
+  package.json
+  inspec.yml
+  ```
+
 on:
   pull_request:
     types: [closed]
