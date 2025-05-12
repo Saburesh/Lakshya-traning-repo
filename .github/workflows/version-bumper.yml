@@ -25,9 +25,12 @@ jobs:
       pull-requests: read
     
     # Files to update version strings in (add your files here)
+    # Bump will auto-detect the first file it finds with a version string
     env:
       additional_files:
-        # - inspec.yml
+        - VERSION
+        - lib/*/version.rb
+        - inspec.yml
     
     steps:
       - name: Checkout code
@@ -75,7 +78,7 @@ jobs:
             echo "Processing additional files from configuration"
             for file in $(echo "$files_json" | jq -r '.[]' 2>/dev/null || echo ""); do
               if [ -n "$file" ]; then
-                BUMP_COMMAND="$BUMP_COMMAND --replace $file"
+                BUMP_COMMAND="$BUMP_COMMAND --replace-in $file"
                 echo "  - Added file: $file"
               fi
             done
