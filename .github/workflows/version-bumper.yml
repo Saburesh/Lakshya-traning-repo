@@ -51,7 +51,14 @@ jobs:
           # Store the labels in a variable and properly parse JSON format
           LABELS='${{ toJson(github.event.pull_request.labels.*.name) }}'
           
-          # Check for labels with proper JSON parsing
+          # First check if we should skip the version bump entirely
+          if echo "$LABELS" | grep -q "Version Bump: Skip"; then
+            echo "skip=true" >> $GITHUB_OUTPUT
+            echo "Found label: Version Bump: Skip - will skip version bump"
+            exit 0
+          fi
+          
+          # Check for other version bump labels
           if echo "$LABELS" | grep -q "Version Bump: Major"; then
             echo "level=major" >> $GITHUB_OUTPUT
             echo "Found label: Version Bump: Major"
@@ -63,10 +70,12 @@ jobs:
             echo "No specific version bump label found, defaulting to patch"
           fi
           
+          echo "skip=false" >> $GITHUB_OUTPUT
           echo "Determined bump level: $(cat $GITHUB_OUTPUT | grep level | cut -d= -f2)"
       
       - name: Build list of files to update
         id: file-list
+        if: steps.bump-type.outputs.skip != 'true'
         run: |
           VERSION_FILES_PATH=".github/workflows/version-files.txt"
           BUMP_FILE_ARGS=""
@@ -122,6 +131,7 @@ jobs:
           echo "file_args=$BUMP_FILE_ARGS" >> $GITHUB_OUTPUT
       
       - name: Run version bump with custom files
+        if: steps.bump-type.outputs.skip != 'true'
         run: |
           BUMP_LEVEL="${{ steps.bump-type.outputs.level }}"
           FILE_ARGS="${{ steps.file-list.outputs.file_args }}"
@@ -136,9 +146,15 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       
       - name: Push changes to main
+        if: steps.bump-type.outputs.skip != 'true'
         run: |
           # Bump has already committed and tagged, we just need to push
           git push origin HEAD:main
           git push origin --tags
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Log skipped version bump
+        if: steps.bump-type.outputs.skip == 'true'
+        run: |
+          echo "Version bump was skipped due to the 'Version Bump: Skip' label"
