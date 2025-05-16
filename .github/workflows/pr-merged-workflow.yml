@@ -32,6 +32,10 @@ jobs:
   bump-version:
     needs: handle-merged-pr
     uses: ./.github/workflows/version-bumper.yml
+    with:
+      version_file_patterns: |
+        lib/*/version.rb
+        inspec.yml
     permissions:
       contents: write
       pull-requests: read
