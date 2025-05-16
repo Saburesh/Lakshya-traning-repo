@@ -1,5 +1,0 @@
-# List files that contain a hardcoded version that needs 
-# to be updated when a PR merges.
-# Do not list VERSION, it is detected automatically.
-lib/*/version.rb
-inspec.yml

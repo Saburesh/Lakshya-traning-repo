@@ -28,21 +28,16 @@ description: |
 on:
   workflow_call:
     inputs:
-      pr_number:
-        description: 'The pull request number that was merged (optional - will be auto-detected if not provided)'
-        required: false
-        type: number
-        default: 0
-      target_branch:
-        description: 'The branch to push version changes to'
-        required: false
-        default: 'main'
-        type: string
       version_file_patterns:
         description: 'List of file patterns to search for version strings (one pattern per line)'
         required: false
         type: string
         default: 'lib/*/version.rb'
+      target_branch:
+        description: 'The branch to push version changes to'
+        required: false
+        default: 'main'
+        type: string      
       git_username:
         description: 'Git username for commits'
         required: false
@@ -63,6 +58,9 @@ on:
       new_version:
         description: 'The new version after bumping'
         value: ${{ jobs.bump-version.outputs.new_version }}
+      pr_number:
+        description: 'The PR number that was processed'
+        value: ${{ jobs.bump-version.outputs.pr_number }}
 
 jobs:
   bump-version:
@@ -96,40 +94,31 @@ jobs:
       - name: Install bump gem
         run: gem install bump
       
-      - name: Get PR number
+      - name: Get PR number from context
         id: get-pr-number
         uses: actions/github-script@v7
         with:
           script: |
-            let prNumber = ${{ inputs.pr_number }};
-            let inPrContext = false;
+            // Check if we're running in the context of a PR event
+            if (!context.payload.pull_request) {
+              core.setFailed('This workflow must be run in a PR context');
+              throw new Error('Not running in PR context');
+            }
             
-            // If PR number was not provided as input, try to detect it
-            if (!prNumber || prNumber === 0) {
-              console.log('PR number not provided as input, attempting to auto-detect...');
-              
-              // Check if we're running in the context of a PR event
-              if (context.payload.pull_request) {
-                inPrContext = true;
-                prNumber = context.payload.pull_request.number;
-                console.log(`Detected PR number from event context: ${prNumber}`);
-              } else {
-                // Not running in PR context and no PR number provided
-                core.setFailed('This workflow must be run in a PR context or with a PR number provided');
-                throw new Error('Not running in PR context');
-              }
-            } else {
-              inPrContext = true;
+            const prNumber = context.payload.pull_request.number;
+            console.log(`Detected PR number from event context: ${prNumber}`);
+            
+            if (!prNumber) {
+              core.setFailed('Could not detect PR number from context');
+              throw new Error('Failed to detect PR number');
             }
             
             core.setOutput('pr_number', prNumber.toString());
-            core.setOutput('in_pr_context', inPrContext.toString());
             return prNumber.toString();
           result-encoding: string
 
       - name: Fetch PR labels
         id: fetch-labels
-        if: steps.get-pr-number.outputs.pr_number != '0'
         uses: actions/github-script@v7
         with:
           script: |
@@ -147,19 +136,14 @@ jobs:
               return JSON.stringify(labelNames);
             } catch (error) {
               console.log(`Error fetching PR #${prNumber}: ${error.message}`);
-              return '[]';
+              core.setFailed(`Failed to fetch PR #${prNumber}: ${error.message}`);
+              throw new Error(`Failed to fetch PR #${prNumber}`);
             }
           result-encoding: string
 
       - name: Determine bump type from labels
         id: bump-type
         run: |
-          # Check if we have a valid PR number
-          if [ "${{ steps.get-pr-number.outputs.pr_number }}" = "0" ]; then
-            echo "::error::No valid PR number detected. Cannot determine version bump type."
-            exit 1
-          fi
-
           # Store the labels in a variable and properly parse JSON format
           LABELS='${{ steps.fetch-labels.outputs.result }}'
           

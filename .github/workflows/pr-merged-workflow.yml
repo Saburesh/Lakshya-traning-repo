@@ -16,12 +16,6 @@ jobs:
     if: github.event.pull_request.merged == true
     runs-on: ubuntu-latest
     steps:
-      #- name: Checkout code
-      #  uses: actions/checkout@v4
-
-      # You can add other steps here that should run after a PR is merged
-      # For example: deployment, notifications, etc.
-      
       - name: Show PR information
         run: |
           echo "PR #${{ github.event.pull_request.number }} was merged"
