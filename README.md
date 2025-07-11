@@ -1,4 +1,5 @@
-SABURESH M␣␣  
+SABURESH M
+
 C GUNASREE
 
 # github-actions-testing
@@ -22,4 +23,3 @@ Does semver bumping and tagging on a list of files you specify, on PR merge. Con
 ### dance gem / cli app
 
 Simple ruby CLI app to test Ruby problems. See README.dance.md.
-
